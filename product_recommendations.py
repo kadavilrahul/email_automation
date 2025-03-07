@@ -93,11 +93,6 @@ class ProductRecommendationSystem:
         
         try:
             # Make a request to the Gemini API
-            headers = {
-                'Content-Type': 'application/json',
-                'Authorization': f'Bearer {self.gemini_api_key}'
-            }
-            
             payload = {
                 'contents': [{
                     'parts': [{
@@ -106,11 +101,8 @@ class ProductRecommendationSystem:
                 }]
             }
             
-            response = requests.post(
-                'https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent',
-                headers=headers,
-                json=payload
-            )
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key={self.gemini_api_key}"
+            response = requests.post(url, json=payload)
             
             response.raise_for_status()
             result = response.json()

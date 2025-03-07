@@ -10,12 +10,12 @@ import json
 load_dotenv()
 
 # Configuration variables
-IP = os.getenv("IP_1")
-DOMAIN = os.getenv("DOMAIN_1")
-DATABASE_NAME = os.getenv("DATABASE_NAME_1")
-DATABASE_USER = os.getenv("DATABASE_USER_1")
-DATABASE_PASSWORD = os.getenv("DATABASE_PASSWORD_1")
-DATABASE_TABLE_PREFIX = os.getenv("DATABASE_TABLE_PREFIX_1", "wp_")  # Default to kdf_ if not set
+IP = os.getenv("IP_DATABASE")
+DOMAIN = os.getenv("DOMAIN")
+DATABASE_NAME = os.getenv("DATABASE_NAME")
+DATABASE_USER = os.getenv("DATABASE_USER")
+DATABASE_PASSWORD = os.getenv("DATABASE_PASSWORD")
+DATABASE_TABLE_PREFIX = os.getenv("DATABASE_TABLE_PREFIX", "wp_")  # Default to kdf_ if not set
 DEFAULT_ACTIVITY_LIMIT = 5  # Default number of activities to display
 
 # Mapping of common event IDs to descriptions
@@ -371,6 +371,7 @@ def main():
                 csv_writer.writerow([
                     'Timestamp', 'Event ID', 'Event Description', 
                     'User', 'User Email', 'Details', 
+                    'EditorLinkProduct', 'ProductStatus', 'ProductTitle', 'ProductUrl', 'SKU',
                     'Site ID', 'Blog ID', 'Object ID', 'Severity'
                 ])
             
@@ -400,25 +401,12 @@ def main():
                     except Exception as meta_error:
                         print(f"Error extracting metadata for occurrence {occurrence_id}: {meta_error}")
                 
-                # Print detailed record information
-                print(f"Occurrence ID: {occurrence_id}")
-                print(f"Timestamp: {created_on}")
-                print(f"Event ID: {alert_id}")
-                print(f"Event: {event_description}")
-                print(f"User: {user_login} ({user_email})")
-                
-                # Additional diagnostic information
-                for col_name in ['site_id', 'blog_id', 'object_id', 'severity']:
-                    if col_name in record:
-                        print(f"{col_name.replace('_', ' ').title()}: {record.get(col_name, 'N/A')}")
-                
-                # Print metadata details
-                if metadata:
-                    print("Metadata:")
-                    for key, value in metadata.items():
-                        print(f"  - {key}: {value}")
-                else:
-                    print("No metadata found for this occurrence.")
+                # Extract metadata values
+                editor_link_product = metadata.get("EditorLinkProduct", "")
+                product_status = metadata.get("ProductStatus", "")
+                product_title = metadata.get("ProductTitle", "")
+                product_url = metadata.get("ProductUrl", "")
+                sku = metadata.get("SKU", "")
                 
                 # Write to CSV if requested
                 if csv_writer:
@@ -429,6 +417,11 @@ def main():
                         user_login,
                         user_email,
                         json.dumps(metadata) if metadata else '',
+                        editor_link_product,
+                        product_status,
+                        product_title,
+                        product_url,
+                        sku,
                         record.get('site_id', ''),
                         record.get('blog_id', ''),
                         record.get('object_id', ''),
@@ -441,6 +434,73 @@ def main():
             if csv_file:
                 csv_file.close()
                 print(f"CSV export completed: {args.csv}")
+            
+            # Export to CSV if there are records and --csv is not specified
+            if records and not args.csv:
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                filename = f"wp_activity_{timestamp}.csv"
+                
+                # Prepare CSV data
+                csv_data = []
+                for record in records:
+                    # Get occurrence details
+                    occurrence_id = record['id']
+                    alert_id = record['alert_id']
+                    created_on = format_timestamp(record['created_on'])
+                    user_login = record.get('user_login', 'Unknown')
+                    user_email = record.get('user_email', '')
+                    
+                    # Get event description
+                    event_description = EVENT_DESCRIPTIONS.get(
+                        alert_id, 
+                        f"Unknown Event (ID: {alert_id})"
+                    )
+                    
+                    # Attempt to extract metadata
+                    metadata = {}
+                    if metadata_exists:
+                        try:
+                            metadata = extract_metadata(occurrence_id, cursor, table_prefix)
+                        except Exception as meta_error:
+                            print(f"Error extracting metadata for occurrence {occurrence_id}: {meta_error}")
+                    
+                    # Extract metadata values
+                    editor_link_product = metadata.get("EditorLinkProduct", "")
+                    product_status = metadata.get("ProductStatus", "")
+                    product_title = metadata.get("ProductTitle", "")
+                    product_url = metadata.get("ProductUrl", "")
+                    sku = metadata.get("SKU", "")
+                    
+                    csv_data.append([
+                        created_on,
+                        alert_id,
+                        event_description,
+                        user_login,
+                        user_email,
+                        json.dumps(metadata) if metadata else '',
+                        editor_link_product,
+                        product_status,
+                        product_title,
+                        product_url,
+                        sku,
+                        record.get('site_id', ''),
+                        record.get('blog_id', ''),
+                        record.get('object_id', ''),
+                        record.get('severity', '')
+                    ])
+                
+                # Write to CSV
+                with open(filename, 'w', newline='', encoding='utf-8') as csvfile:
+                    csv_writer = csv.writer(csvfile)
+                    csv_writer.writerow([
+                        'Timestamp', 'Event ID', 'Event Description', 
+                        'User', 'User Email', 'Details', 
+                        'EditorLinkProduct', 'ProductStatus', 'ProductTitle', 'ProductUrl', 'SKU',
+                        'Site ID', 'Blog ID', 'Object ID', 'Severity'
+                    ])
+                    csv_writer.writerows(csv_data)
+                
+                print(f"CSV export completed: {filename}")
 
     except mysql.connector.Error as e:
         print(f"MySQL Error: {e}")

@@ -26,10 +26,10 @@ def get_db_connection(db_number=1):
     """
     try:
         # Get database credentials from environment variables
-        db_host = os.getenv(f"IP_{db_number}")
-        db_name = os.getenv(f"DATABASE_NAME_{db_number}")
-        db_user = os.getenv(f"DATABASE_USER_{db_number}")
-        db_password = os.getenv(f"DATABASE_PASSWORD_{db_number}")
+        db_host = os.getenv(f"IP_DATABASE")
+        db_name = os.getenv(f"DATABASE_NAME")
+        db_user = os.getenv(f"DATABASE_USER")
+        db_password = os.getenv(f"DATABASE_PASSWORD")
         
         print(f"Connecting to database: {db_name} at {db_host} with user {db_user}")
         
@@ -49,7 +49,7 @@ def get_db_connection(db_number=1):
         print(f"Error connecting to MySQL database: {e}")
         sys.exit(1)
 
-def fetch_woocommerce_orders(connection, table_prefix, days=None, start_date=None, end_date=None):
+def fetch_woocommerce_orders(connection, table_prefix, days=None, start_date=None, end_date=None, limit=10):
     """
     Fetch WooCommerce orders from the database.
     
@@ -59,6 +59,7 @@ def fetch_woocommerce_orders(connection, table_prefix, days=None, start_date=Non
         days (int, optional): Number of days to look back for orders
         start_date (str, optional): Start date for order range (YYYY-MM-DD)
         end_date (str, optional): End date for order range (YYYY-MM-DD)
+        limit (int, optional): Maximum number of orders to fetch. Default is 10.
         
     Returns:
         list: List of dictionaries containing order data
@@ -99,6 +100,7 @@ def fetch_woocommerce_orders(connection, table_prefix, days=None, start_date=Non
         p.ID
     ORDER BY 
         p.post_date DESC
+    LIMIT {limit}
     """
     
     try:
@@ -238,7 +240,9 @@ def main():
     parser.add_argument('--start', type=str, help='Start date (YYYY-MM-DD)')
     parser.add_argument('--end', type=str, help='End date (YYYY-MM-DD)')
     parser.add_argument('--output', type=str, help='Output CSV filename')
-    parser.add_argument('--prefix', type=str, default='wp_', help='WordPress table prefix (default: wp_)')
+    parser.add_argument('--limit', type=int, default=10, help='Maximum number of orders to fetch (default: 10)')
+    table_prefix = os.getenv('DATABASE_TABLE_PREFIX', 'wp_')
+    parser.add_argument('--prefix', type=str, default=table_prefix, help='WordPress table prefix (default: wp_)')
     
     args = parser.parse_args()
     
@@ -248,18 +252,14 @@ def main():
     if not connection:
         return
     
-    # Use the provided table prefix or default to wp_
-    table_prefix = args.prefix
-    
-    print(f"Using table prefix: {table_prefix}")
-    
     # Fetch orders
     orders = fetch_woocommerce_orders(
-        connection, 
-        table_prefix,
+        connection,
+        args.prefix,
         days=args.days,
         start_date=args.start,
-        end_date=args.end
+        end_date=args.end,
+        limit=args.limit
     )
     
     # Export to CSV

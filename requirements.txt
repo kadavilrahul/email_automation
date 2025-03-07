@@ -3,3 +3,6 @@ requests==2.31.0
 google-generativeai==0.3.1
 mysql-connector-python
 agno
+openai
+google-generativeai
+google-genai
